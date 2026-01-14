@@ -8,10 +8,10 @@ A high-performance HTTP reverse proxy built with [Pingora](https://github.com/cl
 
 ## Features
 
-- **Automatic Token Acquisition** - Automatically acquires tokens by calling `/api/login` with configured credentials at startup
+- **Automatic Token Acquisition** - Uses a single credential to acquire N tokens (configurable `pool_size`) via `/api/login` at startup
 - **Per-Connection Token Binding** - Each TCP connection is bound to a dedicated token for the duration of the connection
-- **Connection Queuing** - When all tokens are in use, new connections wait until a token becomes available
-- **Auto Token Refresh** - Automatically refreshes tokens before they expire
+- **Connection Queuing** - When all tokens are in use, new connections wait indefinitely until a token becomes available
+- **Auto Token Refresh** - Automatically refreshes tokens before they expire based on TTL
 - **Health Check Endpoints** - Built-in `/health`, `/livez`, `/readyz`, and `/metrics` endpoints
 - **OpenTelemetry Support** - Full observability with traces and metrics export
 
@@ -49,7 +49,7 @@ Create a `config.yaml` file:
 # Proxy listen address
 listen: "0.0.0.0:8080"
 
-# Health check server (optional)
+# Health check server (optional but recommended for k8s/docker)
 health_listen: "0.0.0.0:9090"
 
 # Upstream DolphinDB server
@@ -58,20 +58,16 @@ upstream:
   port: 8848
   tls: false
 
-# Token refresh settings
+# Single credential - will be used to acquire `pool_size` tokens
+credential:
+  username: "your_username"
+  password: "your_password"
+
+# Token pool configuration
 token:
-  ttl_seconds: 3600        # Token TTL (default: 1 hour)
-  refresh_check_seconds: 60 # Refresh check interval
-
-# User credentials for token acquisition
-credentials:
-  - username: "user1"
-    password: "password1"
-  - username: "user2"
-    password: "password2"
-
-# Or load from file (format: username:password per line)
-# credentials_file: "/path/to/credentials.txt"
+  pool_size: 200             # Number of tokens to acquire (default: 10)
+  ttl_seconds: 3600          # Token TTL in seconds (default: 1 hour)
+  refresh_check_seconds: 60  # How often to check for expired tokens
 
 # Telemetry (optional)
 telemetry:
@@ -95,11 +91,11 @@ telemetry:
               └───────────────┘
 ```
 
-1. **Startup**: TPP calls `/api/login` for each credential to acquire tokens
-2. **Request**: When a client connects, TPP acquires a token from the pool
+1. **Startup**: TPP calls `/api/login` N times with the same credential to acquire `pool_size` tokens
+2. **Request**: When a client connects, TPP acquires a token from the pool (waits if all tokens are in use)
 3. **Proxy**: TPP injects `Authorization: Bearer <token>` header and forwards the request
 4. **Release**: When the connection closes, the token is returned to the pool
-5. **Refresh**: Background task automatically refreshes expiring tokens
+5. **Refresh**: Background task automatically refreshes tokens before TTL expires
 
 ## Health Check Endpoints
 
@@ -147,7 +143,6 @@ services:
       - "9090:9090"
     volumes:
       - ./config.yaml:/app/config.yaml:ro
-      - ./credentials.txt:/app/credentials.txt:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9090/healthz"]
       interval: 30s
