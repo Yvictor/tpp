@@ -132,11 +132,15 @@ impl Config {
         }
 
         if self.credential.username.is_empty() {
-            return Err(TppError::Config("'credential.username' is required".to_string()));
+            return Err(TppError::Config(
+                "'credential.username' is required".to_string(),
+            ));
         }
 
         if self.token.pool_size == 0 {
-            return Err(TppError::Config("'token.pool_size' must be > 0".to_string()));
+            return Err(TppError::Config(
+                "'token.pool_size' must be > 0".to_string(),
+            ));
         }
 
         Ok(())
