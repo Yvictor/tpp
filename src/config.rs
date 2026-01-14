@@ -112,9 +112,70 @@ impl Config {
         let content = fs::read_to_string(path.as_ref())
             .map_err(|e| TppError::Config(format!("Failed to read config file: {}", e)))?;
 
-        let config: Config = serde_yaml::from_str(&content)?;
+        let mut config: Config = serde_yaml::from_str(&content)?;
+        config.apply_env_overrides();
         config.validate()?;
         Ok(config)
+    }
+
+    /// Apply environment variable overrides
+    /// Environment variables take precedence over config file values
+    fn apply_env_overrides(&mut self) {
+        // Listen address
+        if let Ok(val) = std::env::var("TPP_LISTEN") {
+            self.listen = val;
+        }
+
+        // Health listen address
+        if let Ok(val) = std::env::var("TPP_HEALTH_LISTEN") {
+            self.health_listen = Some(val);
+        }
+
+        // Upstream settings
+        if let Ok(val) = std::env::var("TPP_UPSTREAM_HOST") {
+            self.upstream.host = val;
+        }
+        if let Ok(val) = std::env::var("TPP_UPSTREAM_PORT") {
+            if let Ok(port) = val.parse() {
+                self.upstream.port = port;
+            }
+        }
+        if let Ok(val) = std::env::var("TPP_UPSTREAM_TLS") {
+            self.upstream.tls = val.eq_ignore_ascii_case("true") || val == "1";
+        }
+
+        // Credential settings
+        if let Ok(val) = std::env::var("TPP_CREDENTIAL_USERNAME") {
+            self.credential.username = val;
+        }
+        if let Ok(val) = std::env::var("TPP_CREDENTIAL_PASSWORD") {
+            self.credential.password = val;
+        }
+
+        // Token settings
+        if let Ok(val) = std::env::var("TPP_TOKEN_POOL_SIZE") {
+            if let Ok(size) = val.parse() {
+                self.token.pool_size = size;
+            }
+        }
+        if let Ok(val) = std::env::var("TPP_TOKEN_TTL_SECONDS") {
+            if let Ok(ttl) = val.parse() {
+                self.token.ttl_seconds = ttl;
+            }
+        }
+        if let Ok(val) = std::env::var("TPP_TOKEN_REFRESH_CHECK_SECONDS") {
+            if let Ok(interval) = val.parse() {
+                self.token.refresh_check_seconds = interval;
+            }
+        }
+
+        // Telemetry settings
+        if let Ok(val) = std::env::var("TPP_TELEMETRY_OTLP_ENDPOINT") {
+            self.telemetry.otlp_endpoint = Some(val);
+        }
+        if let Ok(val) = std::env::var("TPP_TELEMETRY_LOG_FILTER") {
+            self.telemetry.log_filter = Some(val);
+        }
     }
 
     /// Validate configuration

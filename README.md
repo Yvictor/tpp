@@ -153,9 +153,22 @@ services:
 
 ## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `RUST_LOG` | Log level filter (e.g., `info`, `debug`, `tpp=debug`) |
+All configuration values can be overridden via environment variables. Environment variables take precedence over config file values.
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `TPP_LISTEN` | Proxy listen address | `0.0.0.0:8080` |
+| `TPP_HEALTH_LISTEN` | Health check server address | `0.0.0.0:9090` |
+| `TPP_UPSTREAM_HOST` | Upstream DolphinDB host | `dolphindb.example.com` |
+| `TPP_UPSTREAM_PORT` | Upstream DolphinDB port | `8848` |
+| `TPP_UPSTREAM_TLS` | Enable TLS for upstream | `true` or `1` |
+| `TPP_CREDENTIAL_USERNAME` | DolphinDB username | `admin` |
+| `TPP_CREDENTIAL_PASSWORD` | DolphinDB password | `secret` |
+| `TPP_TOKEN_POOL_SIZE` | Number of tokens to acquire | `200` |
+| `TPP_TOKEN_TTL_SECONDS` | Token TTL in seconds | `3600` |
+| `TPP_TOKEN_REFRESH_CHECK_SECONDS` | Refresh check interval | `60` |
+| `TPP_TELEMETRY_OTLP_ENDPOINT` | OTLP endpoint | `http://localhost:4317` |
+| `TPP_TELEMETRY_LOG_FILTER` | Log level filter | `info`, `debug`, `tpp=debug` |
 
 ## Building from Source
 
