@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Yvictor/tpp/actions/workflows/ci.yml/badge.svg)](https://github.com/Yvictor/tpp/actions/workflows/ci.yml)
 [![Release](https://github.com/Yvictor/tpp/actions/workflows/release.yml/badge.svg)](https://github.com/Yvictor/tpp/actions/workflows/release.yml)
-[![Docker](https://img.shields.io/docker/v/yvictor/tpp?label=docker&sort=semver)](https://hub.docker.com/r/yvictor/tpp)
+[![Docker](https://img.shields.io/docker/v/sinotrade/tpp?label=docker&sort=semver)](https://hub.docker.com/r/sinotrade/tpp)
 
 A high-performance HTTP reverse proxy built with [Pingora](https://github.com/cloudflare/pingora) that provides Bearer token connection pooling for DolphinDB REST API.
 
@@ -24,7 +24,7 @@ docker run -d \
   -v $(pwd)/config.yaml:/app/config.yaml \
   -p 8080:8080 \
   -p 9090:9090 \
-  yvictor/tpp:latest
+  sinotrade/tpp:latest
 ```
 
 ### From Source
@@ -137,7 +137,7 @@ version: '3.8'
 
 services:
   tpp:
-    image: yvictor/tpp:latest
+    image: sinotrade/tpp:latest
     ports:
       - "8080:8080"
       - "9090:9090"
