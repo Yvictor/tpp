@@ -110,9 +110,9 @@ pub struct TokenPool {
 }
 
 impl TokenPool {
-    /// Create a new token pool from tokens and their credentials
-    pub fn new(tokens_with_creds: Vec<(String, Credential)>) -> Arc<Self> {
-        let total_count = tokens_with_creds.len();
+    /// Create a new token pool from tokens and a single credential (used for all tokens)
+    pub fn new(tokens: Vec<String>, credential: Credential) -> Arc<Self> {
+        let total_count = tokens.len();
         info!("Creating token pool with {} tokens", total_count);
 
         // Create bounded channel with capacity = number of tokens
@@ -120,8 +120,8 @@ impl TokenPool {
 
         // Initialize metadata and populate channel with token IDs
         let token_meta = DashMap::new();
-        for (id, (value, credential)) in tokens_with_creds.into_iter().enumerate() {
-            token_meta.insert(id, TokenMeta::new(value, credential));
+        for (id, value) in tokens.into_iter().enumerate() {
+            token_meta.insert(id, TokenMeta::new(value, credential.clone()));
             // Send token ID to channel
             tx.try_send(id).expect("Channel should have capacity");
         }
@@ -293,19 +293,19 @@ impl TokenPool {
 mod tests {
     use super::*;
 
-    fn make_cred(name: &str) -> Credential {
+    fn make_cred() -> Credential {
         Credential {
-            username: name.to_string(),
-            password: "pass".to_string(),
+            username: "testuser".to_string(),
+            password: "testpass".to_string(),
         }
     }
 
     #[tokio::test]
     async fn test_acquire_release() {
-        let pool = TokenPool::new(vec![
-            ("token1".to_string(), make_cred("user1")),
-            ("token2".to_string(), make_cred("user2")),
-        ]);
+        let pool = TokenPool::new(
+            vec!["token1".to_string(), "token2".to_string()],
+            make_cred(),
+        );
 
         assert_eq!(pool.total(), 2);
         assert_eq!(pool.available(), 2);
@@ -330,7 +330,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_token_refresh() {
-        let pool = TokenPool::new(vec![("old_token".to_string(), make_cred("user1"))]);
+        let pool = TokenPool::new(vec!["old_token".to_string()], make_cred());
 
         let t = pool.acquire().await;
         assert_eq!(t.value, "old_token");

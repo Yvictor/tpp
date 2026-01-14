@@ -45,18 +45,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     init_telemetry(telemetry_config)?;
 
-    // Load credentials
-    let credentials = config.load_credentials()?;
-    info!("Loaded {} credentials", credentials.len());
+    info!(
+        "Credential: user='{}', pool_size={}",
+        config.credential.username, config.token.pool_size
+    );
 
     // Acquire tokens from DolphinDB
     let acquirer = TokenAcquirer::new(&config.upstream.base_url());
-    let tokens_with_creds = acquirer.acquire_all(&credentials).await?;
+    let tokens = acquirer
+        .acquire_n(&config.credential, config.token.pool_size)
+        .await?;
 
-    info!("Created token pool with {} tokens", tokens_with_creds.len());
+    info!("Acquired {} tokens", tokens.len());
 
     // Create token pool
-    let pool = TokenPool::new(tokens_with_creds);
+    let pool = TokenPool::new(tokens, config.credential.clone());
 
     // Start health check server if configured
     if let Some(health_addr) = &config.health_listen {

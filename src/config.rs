@@ -46,6 +46,10 @@ pub struct TelemetryConfig {
 /// Token refresh configuration
 #[derive(Debug, Deserialize, Clone)]
 pub struct TokenConfig {
+    /// Number of tokens to acquire (pool size)
+    #[serde(default = "default_pool_size")]
+    pub pool_size: usize,
+
     /// Token TTL in seconds (default: 3600 = 1 hour)
     #[serde(default = "default_token_ttl")]
     pub ttl_seconds: u64,
@@ -53,6 +57,10 @@ pub struct TokenConfig {
     /// How often to check for expired tokens in seconds (default: 60)
     #[serde(default = "default_refresh_interval")]
     pub refresh_check_seconds: u64,
+}
+
+fn default_pool_size() -> usize {
+    10
 }
 
 fn default_token_ttl() -> u64 {
@@ -66,6 +74,7 @@ fn default_refresh_interval() -> u64 {
 impl Default for TokenConfig {
     fn default() -> Self {
         Self {
+            pool_size: default_pool_size(),
             ttl_seconds: default_token_ttl(),
             refresh_check_seconds: default_refresh_interval(),
         }
@@ -84,14 +93,11 @@ pub struct Config {
     /// Upstream server configuration
     pub upstream: UpstreamConfig,
 
-    /// User credentials for automatic token acquisition
-    #[serde(default)]
-    pub credentials: Vec<Credential>,
+    /// Single credential for token acquisition
+    /// The same credential will be used to acquire `token.pool_size` tokens
+    pub credential: Credential,
 
-    /// Path to file containing credentials (format: username:password per line)
-    pub credentials_file: Option<String>,
-
-    /// Token refresh configuration
+    /// Token configuration (pool size, TTL, refresh interval)
     #[serde(default)]
     pub token: TokenConfig,
 
@@ -111,51 +117,6 @@ impl Config {
         Ok(config)
     }
 
-    /// Get all credentials (from inline config and/or credentials file)
-    pub fn load_credentials(&self) -> Result<Vec<Credential>> {
-        let mut credentials = self.credentials.clone();
-
-        // Load credentials from file if specified
-        if let Some(ref file_path) = self.credentials_file {
-            let content = fs::read_to_string(file_path).map_err(|e| {
-                TppError::Config(format!(
-                    "Failed to read credentials file '{}': {}",
-                    file_path, e
-                ))
-            })?;
-
-            for line in content.lines() {
-                let line = line.trim();
-                if line.is_empty() || line.starts_with('#') {
-                    continue;
-                }
-
-                // Format: username:password
-                let parts: Vec<&str> = line.splitn(2, ':').collect();
-                if parts.len() != 2 {
-                    return Err(TppError::Config(format!(
-                        "Invalid credential format in file: '{}'. Expected 'username:password'",
-                        line
-                    )));
-                }
-
-                credentials.push(Credential {
-                    username: parts[0].to_string(),
-                    password: parts[1].to_string(),
-                });
-            }
-        }
-
-        if credentials.is_empty() {
-            return Err(TppError::Config(
-                "No credentials configured. Provide 'credentials' or 'credentials_file' in config."
-                    .to_string(),
-            ));
-        }
-
-        Ok(credentials)
-    }
-
     /// Validate configuration
     fn validate(&self) -> Result<()> {
         if self.listen.is_empty() {
@@ -170,11 +131,12 @@ impl Config {
             return Err(TppError::Config("'upstream.port' must be > 0".to_string()));
         }
 
-        // Check that at least one credential source is provided
-        if self.credentials.is_empty() && self.credentials_file.is_none() {
-            return Err(TppError::Config(
-                "Either 'credentials' or 'credentials_file' must be provided".to_string(),
-            ));
+        if self.credential.username.is_empty() {
+            return Err(TppError::Config("'credential.username' is required".to_string()));
+        }
+
+        if self.token.pool_size == 0 {
+            return Err(TppError::Config("'token.pool_size' must be > 0".to_string()));
         }
 
         Ok(())
@@ -195,11 +157,13 @@ upstream:
   port: 8848
   tls: false
 
-credentials:
-  - username: "user1"
-    password: "pass1"
-  - username: "user2"
-    password: "pass2"
+credential:
+  username: "user1"
+  password: "pass1"
+
+token:
+  pool_size: 200
+  ttl_seconds: 3600
 
 telemetry:
   otlp_endpoint: "http://localhost:4317"
@@ -210,7 +174,8 @@ telemetry:
         assert_eq!(config.upstream.host, "dolphindb.example.com");
         assert_eq!(config.upstream.port, 8848);
         assert!(!config.upstream.tls);
-        assert_eq!(config.credentials.len(), 2);
+        assert_eq!(config.credential.username, "user1");
+        assert_eq!(config.token.pool_size, 200);
         assert_eq!(
             config.telemetry.otlp_endpoint,
             Some("http://localhost:4317".to_string())

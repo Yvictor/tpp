@@ -12,26 +12,22 @@ upstream:
   port: 8848
   tls: false
 
-# Token refresh configuration
+# Single credential - will be used to acquire `pool_size` tokens
+credential:
+  username: "your_username"
+  password: "your_password"
+
+# Token pool configuration
 token:
+  # Number of tokens to acquire (pool size)
+  pool_size: 200
+
   # Token TTL in seconds (default: 3600 = 1 hour)
   # Tokens older than this will be automatically refreshed
   ttl_seconds: 3600
 
   # How often to check for expired tokens (default: 60 seconds)
   refresh_check_seconds: 60
-
-# User credentials for automatic token acquisition
-# Proxy will call /api/login for each credential at startup
-credentials:
-  - username: "user1"
-    password: "password1"
-  - username: "user2"
-    password: "password2"
-  # ... add up to 200 credentials
-
-# Or load credentials from a file (one per line, format: username:password)
-# credentials_file: "/path/to/credentials.txt"
 
 # Telemetry configuration (optional)
 telemetry:

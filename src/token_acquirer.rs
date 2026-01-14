@@ -99,35 +99,29 @@ impl TokenAcquirer {
         })
     }
 
-    /// Acquire tokens for all credentials
-    /// Returns a list of (token, credential) pairs
-    pub async fn acquire_all(
-        &self,
-        credentials: &[Credential],
-    ) -> Result<Vec<(String, Credential)>> {
-        let total = credentials.len();
-        info!("Acquiring {} tokens from DolphinDB...", total);
+    /// Acquire N tokens using a single credential
+    /// Returns a list of token strings
+    pub async fn acquire_n(&self, credential: &Credential, count: usize) -> Result<Vec<String>> {
+        info!(
+            "Acquiring {} tokens from DolphinDB for user '{}'...",
+            count, credential.username
+        );
 
-        let mut results = Vec::with_capacity(total);
+        let mut tokens = Vec::with_capacity(count);
         let mut failures = 0;
 
-        for (i, cred) in credentials.iter().enumerate() {
-            match self.login(cred).await {
+        for i in 0..count {
+            match self.login(credential).await {
                 Ok(token) => {
-                    results.push((token, cred.clone()));
-                    if (i + 1) % 10 == 0 || i + 1 == total {
-                        info!("Acquired {}/{} tokens", i + 1, total);
+                    tokens.push(token);
+                    if (i + 1) % 10 == 0 || i + 1 == count {
+                        info!("Acquired {}/{} tokens", i + 1, count);
                     }
                 }
                 Err(e) => {
                     failures += 1;
-                    error!(
-                        "Failed to acquire token for user '{}' ({}/{}): {}",
-                        cred.username,
-                        i + 1,
-                        total,
-                        e
-                    );
+                    error!("Failed to acquire token ({}/{}): {}", i + 1, count, e);
+                    // Continue trying to acquire remaining tokens
                 }
             }
         }
@@ -136,21 +130,21 @@ impl TokenAcquirer {
             warn!(
                 "Token acquisition completed with {} failures ({}/{} successful)",
                 failures,
-                results.len(),
-                total
+                tokens.len(),
+                count
             );
         } else {
-            info!("Successfully acquired all {} tokens", results.len());
+            info!("Successfully acquired all {} tokens", tokens.len());
         }
 
-        if results.is_empty() {
+        if tokens.is_empty() {
             return Err(TppError::TokenPool(
                 "Failed to acquire any tokens. Check credentials and DolphinDB connectivity."
                     .to_string(),
             ));
         }
 
-        Ok(results)
+        Ok(tokens)
     }
 
     /// Refresh a single token
