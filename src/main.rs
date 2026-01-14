@@ -74,11 +74,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Create proxy
-    let proxy = TokenPoolProxy::new(
-        pool.clone(),
-        config.upstream.address(),
-        config.upstream.tls,
-    );
+    let proxy = TokenPoolProxy::new(pool.clone(), config.upstream.address(), config.upstream.tls);
 
     // Create Pingora server
     let mut server = Server::new(Some(Opt::default()))?;

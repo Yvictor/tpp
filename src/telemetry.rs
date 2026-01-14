@@ -122,7 +122,9 @@ fn create_resource() -> Resource {
     ])
 }
 
-fn init_tracer_provider(endpoint: &str) -> Result<TracerProvider, opentelemetry::trace::TraceError> {
+fn init_tracer_provider(
+    endpoint: &str,
+) -> Result<TracerProvider, opentelemetry::trace::TraceError> {
     let exporter = opentelemetry_otlp::SpanExporter::builder()
         .with_tonic()
         .with_endpoint(endpoint)
@@ -137,7 +139,9 @@ fn init_tracer_provider(endpoint: &str) -> Result<TracerProvider, opentelemetry:
     Ok(provider)
 }
 
-fn init_meter_provider(endpoint: &str) -> Result<SdkMeterProvider, opentelemetry_sdk::metrics::MetricError> {
+fn init_meter_provider(
+    endpoint: &str,
+) -> Result<SdkMeterProvider, opentelemetry_sdk::metrics::MetricError> {
     let exporter = opentelemetry_otlp::MetricExporter::builder()
         .with_tonic()
         .with_endpoint(endpoint)

@@ -149,7 +149,11 @@ impl TokenPool {
         );
 
         // Wait for a token ID (blocks if pool is exhausted)
-        let token_id = self.available_rx.recv().await.expect("Channel closed unexpectedly");
+        let token_id = self
+            .available_rx
+            .recv()
+            .await
+            .expect("Channel closed unexpectedly");
 
         // Update counters
         self.waiting.fetch_sub(1, Ordering::Relaxed);
@@ -170,7 +174,10 @@ impl TokenPool {
             self.available()
         );
 
-        Token { value, id: token_id }
+        Token {
+            value,
+            id: token_id,
+        }
     }
 
     /// Release a token back to the pool

@@ -70,11 +70,7 @@ impl ProxyHttp for TokenPoolProxy {
 
         ctx.request_count += 1;
 
-        let peer = HttpPeer::new(
-            &self.upstream,
-            self.use_tls,
-            self.upstream.clone(),
-        );
+        let peer = HttpPeer::new(&self.upstream, self.use_tls, self.upstream.clone());
 
         Ok(Box::new(peer))
     }
@@ -97,10 +93,7 @@ impl ProxyHttp for TokenPoolProxy {
                     )
                 })?;
 
-            debug!(
-                "Injected Authorization header for token #{}",
-                token.id
-            );
+            debug!("Injected Authorization header for token #{}", token.id);
         }
 
         Ok(())

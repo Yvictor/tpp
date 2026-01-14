@@ -1,12 +1,6 @@
 use std::sync::Arc;
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    routing::get,
-    Json, Router,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::get, Json, Router};
 use serde::Serialize;
 use tokio::net::TcpListener;
 use tracing::info;
@@ -136,10 +130,7 @@ pub async fn start_health_server(
 }
 
 /// Spawn health check server as a background task
-pub fn spawn_health_server(
-    addr: String,
-    pool: Arc<TokenPool>,
-) -> tokio::task::JoinHandle<()> {
+pub fn spawn_health_server(addr: String, pool: Arc<TokenPool>) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         if let Err(e) = start_health_server(&addr, pool).await {
             tracing::error!("Health check server error: {}", e);

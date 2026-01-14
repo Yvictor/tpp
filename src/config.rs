@@ -103,9 +103,8 @@ pub struct Config {
 impl Config {
     /// Load configuration from a YAML file
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let content = fs::read_to_string(path.as_ref()).map_err(|e| {
-            TppError::Config(format!("Failed to read config file: {}", e))
-        })?;
+        let content = fs::read_to_string(path.as_ref())
+            .map_err(|e| TppError::Config(format!("Failed to read config file: {}", e)))?;
 
         let config: Config = serde_yaml::from_str(&content)?;
         config.validate()?;
