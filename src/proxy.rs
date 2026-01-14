@@ -112,7 +112,7 @@ impl ProxyHttp for TokenPoolProxy {
         let is_error = e.is_some()
             || session
                 .response_written()
-                .map_or(false, |resp| resp.status.as_u16() >= 400);
+                .is_some_and(|resp| resp.status.as_u16() >= 400);
 
         if let Some(ref token) = ctx.token {
             if is_error {
