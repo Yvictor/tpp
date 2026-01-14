@@ -1,5 +1,9 @@
 # TPP - Token Pool Proxy
 
+# Extract version from Cargo.toml
+version := `grep '^version' Cargo.toml | head -1 | cut -d'"' -f2`
+image := "sinotrade/tpp"
+
 # Default recipe
 default: check
 
@@ -42,13 +46,44 @@ run-release config="config.yaml":
 clean:
     cargo clean
 
-# Docker build
-docker-build tag="tpp:latest":
-    docker build -t {{tag}} .
+# Docker build with version and latest tags
+image:
+    @echo "Building Docker image {{image}}:{{version}} and {{image}}:latest"
+    docker build --rm -t {{image}}:{{version}} -t {{image}}:latest .
+
+# Docker build without cache
+image-nocache:
+    docker build --no-cache --rm -t {{image}}:{{version}} -t {{image}}:latest .
+
+# Push both version and latest tags to Docker Hub
+push: push-version push-latest
+    @echo "Successfully pushed all tags"
+
+# Push version tag to Docker Hub
+push-version:
+    @echo "Pushing {{image}}:{{version}}..."
+    docker push {{image}}:{{version}}
+
+# Push latest tag to Docker Hub
+push-latest:
+    @echo "Pushing {{image}}:latest..."
+    docker push {{image}}:latest
+
+# Build and push Docker image
+image-push: image push
 
 # Docker run
-docker-run tag="tpp:latest" config="config.yaml":
-    docker run -v $(pwd)/{{config}}:/app/config.yaml -p 8080:8080 -p 9090:9090 {{tag}}
+docker-run config="config.yaml":
+    docker run -v $(pwd)/{{config}}:/app/config.yaml -p 8080:8080 -p 9090:9090 {{image}}:latest
+
+# Show current version
+show-version:
+    @echo "Current version: {{version}}"
+    @echo "Docker image: {{image}}:{{version}}"
+
+# List local Docker images
+list-images:
+    @docker images {{image}} --format "table {{{{.Tag}}}}\t{{{{.Size}}}}\t{{{{.CreatedAt}}}}"
 
 # Watch and run tests on file change (requires cargo-watch)
 watch:
@@ -67,10 +102,10 @@ update:
     cargo update
 
 # Create a new release tag
-tag version:
-    git tag v{{version}}
-    git push origin v{{version}}
-    @echo "Now create a release on GitHub: https://github.com/Yvictor/tpp/releases/new?tag=v{{version}}"
+tag ver:
+    git tag -a v{{ver}} -m "v{{ver}}"
+    git push origin v{{ver}}
+    @echo "Now create a release on GitHub: https://github.com/Yvictor/tpp/releases/new?tag=v{{ver}}"
 
 # Show help
 help:
