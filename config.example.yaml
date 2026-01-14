@@ -1,0 +1,42 @@
+# Token Pool Proxy Configuration
+
+# Proxy listen address
+listen: "0.0.0.0:8080"
+
+# Health check server (optional but recommended for k8s/docker)
+health_listen: "0.0.0.0:9090"
+
+# Upstream DolphinDB server
+upstream:
+  host: "dolphindb.example.com"
+  port: 8848
+  tls: false
+
+# Token refresh configuration
+token:
+  # Token TTL in seconds (default: 3600 = 1 hour)
+  # Tokens older than this will be automatically refreshed
+  ttl_seconds: 3600
+
+  # How often to check for expired tokens (default: 60 seconds)
+  refresh_check_seconds: 60
+
+# User credentials for automatic token acquisition
+# Proxy will call /api/login for each credential at startup
+credentials:
+  - username: "user1"
+    password: "password1"
+  - username: "user2"
+    password: "password2"
+  # ... add up to 200 credentials
+
+# Or load credentials from a file (one per line, format: username:password)
+# credentials_file: "/path/to/credentials.txt"
+
+# Telemetry configuration (optional)
+telemetry:
+  # OTLP endpoint for Grafana/Tempo/Prometheus
+  # otlp_endpoint: "http://localhost:4317"
+
+  # Log filter (e.g., "info", "debug", "tpp=debug")
+  log_filter: "info"

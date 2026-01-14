@@ -1,0 +1,48 @@
+[package]
+name = "tpp"
+version = "0.1.0"
+edition = "2021"
+description = "Token Pool HTTP Proxy - Bearer token connection pooling for DolphinDB REST API"
+license = "MIT"
+
+[dependencies]
+# Pingora HTTP proxy framework
+pingora = "0.6"
+pingora-proxy = "0.6"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+async-channel = "2"
+
+# Config parsing
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+clap = { version = "4", features = ["derive"] }
+
+# Concurrency
+dashmap = "6"
+parking_lot = "0.12"
+
+# Logging & Telemetry
+log = "0.4"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+opentelemetry = "0.27"
+opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.27", features = ["tonic", "metrics"] }
+tracing-opentelemetry = "0.28"
+opentelemetry-semantic-conventions = "0.27"
+
+# Memory allocator
+jemallocator = "0.5"
+
+# Error handling
+thiserror = "1"
+anyhow = "1"
+
+# HTTP client for token acquisition
+reqwest = { version = "0.12", features = ["json"] }
+
+# HTTP server for health check
+axum = "0.7"
