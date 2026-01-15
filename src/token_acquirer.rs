@@ -13,14 +13,20 @@ struct LoginRequest {
 }
 
 /// DolphinDB login response
+/// See: https://docs.dolphindb.com/en/API/rest_api.html
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct LoginResponse {
-    #[serde(rename = "userToken")]
-    user_token: Option<String>,
-    #[serde(rename = "resultCode")]
-    result_code: Option<i32>,
-    #[serde(rename = "msg")]
+    /// Session identifier
+    session: Option<String>,
+    /// Authenticated username
+    user: Option<String>,
+    /// "0" for success, "1" for failure
+    code: Option<String>,
+    /// Error description (empty on success)
     message: Option<String>,
+    /// Array containing the user token on success
+    result: Option<Vec<String>>,
 }
 
 /// Acquires tokens from DolphinDB by calling the login API
@@ -78,11 +84,12 @@ impl TokenAcquirer {
             ))
         })?;
 
-        // Check result code (0 = success in DolphinDB)
-        if let Some(code) = login_response.result_code {
-            if code != 0 {
+        // Check result code ("0" = success, "1" = failure in DolphinDB)
+        if let Some(code) = &login_response.code {
+            if code != "0" {
                 let msg = login_response
                     .message
+                    .clone()
                     .unwrap_or_else(|| "Unknown error".to_string());
                 return Err(TppError::TokenPool(format!(
                     "Login failed for user '{}': {} (code: {})",
@@ -91,12 +98,16 @@ impl TokenAcquirer {
             }
         }
 
-        login_response.user_token.ok_or_else(|| {
-            TppError::TokenPool(format!(
-                "Login response for user '{}' missing userToken",
-                credential.username
-            ))
-        })
+        // Extract token from result array
+        login_response
+            .result
+            .and_then(|r| r.into_iter().next())
+            .ok_or_else(|| {
+                TppError::TokenPool(format!(
+                    "Login response for user '{}' missing token in result",
+                    credential.username
+                ))
+            })
     }
 
     /// Acquire N tokens using a single credential
