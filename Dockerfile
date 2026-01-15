@@ -32,6 +32,7 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
@@ -47,17 +48,13 @@ RUN chown -R tpp:tpp /app
 
 USER tpp
 
-# Default config path
-ENV TPP_CONFIG=/app/config.yaml
-
 # Expose ports
 # 8080 - proxy
 # 9090 - health check
 EXPOSE 8080 9090
 
-# Health check
+# Health check (requires TPP_HEALTH_LISTEN to be set)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:9090/healthz || exit 1
 
 ENTRYPOINT ["/app/tpp"]
-CMD ["--config", "/app/config.yaml"]

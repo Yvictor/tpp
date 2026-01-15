@@ -1,6 +1,6 @@
 [package]
 name = "tpp"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Token Pool HTTP Proxy - Bearer token connection pooling for DolphinDB REST API"
 license = "MIT"
