@@ -2,20 +2,19 @@
 static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
 use std::path::PathBuf;
+use std::process;
 use std::time::Duration;
 
 use clap::Parser;
 use pingora::prelude::*;
 use pingora_proxy::http_proxy_service;
-use tracing::info;
+use tracing::{error, info};
 
 use tpp::config::Config;
-use tpp::health::spawn_health_server;
 use tpp::proxy::TokenPoolProxy;
 use tpp::telemetry::{init_telemetry, TelemetryConfig};
 use tpp::token_acquirer::TokenAcquirer;
 use tpp::token_pool::TokenPool;
-use tpp::token_refresher::spawn_refresher;
 
 #[derive(Parser, Debug)]
 #[command(name = "tpp")]
@@ -27,14 +26,25 @@ struct Args {
     config: Option<PathBuf>,
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
     let args = Args::parse();
 
     // Load configuration from file or environment variables
     let config = match args.config {
-        Some(path) => Config::from_file(&path)?,
-        None => Config::from_env()?,
+        Some(path) => match Config::from_file(&path) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("Failed to load config: {}", e);
+                process::exit(1);
+            }
+        },
+        None => match Config::from_env() {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("Failed to load config from env: {}", e);
+                process::exit(1);
+            }
+        },
     };
 
     // Initialize telemetry
@@ -46,44 +56,62 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .clone()
             .unwrap_or_else(|| "info".to_string()),
     };
-    init_telemetry(telemetry_config)?;
+    if let Err(e) = init_telemetry(telemetry_config) {
+        eprintln!("Failed to initialize telemetry: {}", e);
+        process::exit(1);
+    }
 
     info!(
         "Credential: user='{}', pool_size={}",
         config.credential.username, config.token.pool_size
     );
 
-    // Acquire tokens from DolphinDB
-    let acquirer = TokenAcquirer::new(&config.upstream.base_url());
-    let tokens = acquirer
-        .acquire_n(&config.credential, config.token.pool_size)
-        .await?;
+    // Use a dedicated runtime for async initialization (token acquisition)
+    // This runtime will be dropped before Pingora creates its own
+    let (pool, acquirer) = {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to create tokio runtime for initialization");
 
-    info!("Acquired {} tokens", tokens.len());
+        rt.block_on(async {
+            let acquirer = TokenAcquirer::new(&config.upstream.base_url());
+            let tokens = match acquirer
+                .acquire_n(&config.credential, config.token.pool_size)
+                .await
+            {
+                Ok(t) => t,
+                Err(e) => {
+                    error!("Failed to acquire tokens: {}", e);
+                    process::exit(1);
+                }
+            };
 
-    // Create token pool
-    let pool = TokenPool::new(tokens, config.credential.clone());
+            info!("Acquired {} tokens", tokens.len());
 
-    // Start health check server if configured
-    if let Some(health_addr) = &config.health_listen {
-        spawn_health_server(health_addr.clone(), pool.clone());
-        info!("Health check server started on {}", health_addr);
-    }
+            let pool = TokenPool::new(tokens, config.credential.clone());
+            (pool, acquirer)
+        })
+    };
 
-    // Start token refresher
+    // Start health check server and token refresher on Pingora's runtime
+    let health_addr = config.health_listen.clone();
     let ttl = Duration::from_secs(config.token.ttl_seconds);
     let check_interval = Duration::from_secs(config.token.refresh_check_seconds);
-    spawn_refresher(pool.clone(), acquirer.clone(), ttl, check_interval);
-    info!(
-        "Token refresher started (TTL: {}s, check interval: {}s)",
-        config.token.ttl_seconds, config.token.refresh_check_seconds
-    );
+    let pool_for_health = pool.clone();
+    let pool_for_refresher = pool.clone();
 
     // Create proxy
     let proxy = TokenPoolProxy::new(pool.clone(), config.upstream.address(), config.upstream.tls);
 
     // Create Pingora server
-    let mut server = Server::new(Some(Opt::default()))?;
+    let mut server = match Server::new(Some(Opt::default())) {
+        Ok(s) => s,
+        Err(e) => {
+            error!("Failed to create server: {}", e);
+            process::exit(1);
+        }
+    };
     server.bootstrap();
 
     // Create HTTP proxy service
@@ -99,5 +127,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     server.add_service(proxy_service);
+
+    // Spawn health server and refresher after Pingora starts
+    // Use a background service to spawn these tasks
+    std::thread::spawn(move || {
+        // Wait a bit for Pingora to fully start
+        std::thread::sleep(Duration::from_millis(100));
+
+        // Create a runtime for background tasks
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to create background runtime");
+
+        rt.block_on(async {
+            // Start health check server if configured
+            if let Some(addr) = health_addr {
+                tpp::health::spawn_health_server(addr.clone(), pool_for_health);
+                info!("Health check server started on {}", addr);
+            }
+
+            // Start token refresher
+            tpp::token_refresher::spawn_refresher(
+                pool_for_refresher,
+                acquirer,
+                ttl,
+                check_interval,
+            );
+            info!(
+                "Token refresher started (TTL: {}s, check interval: {}s)",
+                ttl.as_secs(),
+                check_interval.as_secs()
+            );
+
+            // Keep the runtime alive
+            loop {
+                tokio::time::sleep(Duration::from_secs(3600)).await;
+            }
+        });
+    });
+
     server.run_forever();
 }
