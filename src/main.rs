@@ -22,17 +22,20 @@ use tpp::token_refresher::spawn_refresher;
 #[command(about = "Token Pool HTTP Proxy - Bearer token connection pooling for DolphinDB")]
 #[command(version)]
 struct Args {
-    /// Path to configuration file
+    /// Path to configuration file (optional, can use env vars instead)
     #[arg(short, long)]
-    config: PathBuf,
+    config: Option<PathBuf>,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    // Load configuration
-    let config = Config::from_file(&args.config)?;
+    // Load configuration from file or environment variables
+    let config = match args.config {
+        Some(path) => Config::from_file(&path)?,
+        None => Config::from_env()?,
+    };
 
     // Initialize telemetry
     let telemetry_config = TelemetryConfig {

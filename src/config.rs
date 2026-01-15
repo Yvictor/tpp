@@ -118,6 +118,48 @@ impl Config {
         Ok(config)
     }
 
+    /// Create configuration purely from environment variables
+    pub fn from_env() -> Result<Self> {
+        let config = Self {
+            listen: std::env::var("TPP_LISTEN").unwrap_or_else(|_| "0.0.0.0:8080".to_string()),
+            health_listen: std::env::var("TPP_HEALTH_LISTEN").ok(),
+            upstream: UpstreamConfig {
+                host: std::env::var("TPP_UPSTREAM_HOST").unwrap_or_default(),
+                port: std::env::var("TPP_UPSTREAM_PORT")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(8848),
+                tls: std::env::var("TPP_UPSTREAM_TLS")
+                    .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+                    .unwrap_or(false),
+            },
+            credential: Credential {
+                username: std::env::var("TPP_CREDENTIAL_USERNAME").unwrap_or_default(),
+                password: std::env::var("TPP_CREDENTIAL_PASSWORD").unwrap_or_default(),
+            },
+            token: TokenConfig {
+                pool_size: std::env::var("TPP_TOKEN_POOL_SIZE")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or_else(default_pool_size),
+                ttl_seconds: std::env::var("TPP_TOKEN_TTL_SECONDS")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or_else(default_token_ttl),
+                refresh_check_seconds: std::env::var("TPP_TOKEN_REFRESH_CHECK_SECONDS")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or_else(default_refresh_interval),
+            },
+            telemetry: TelemetryConfig {
+                otlp_endpoint: std::env::var("TPP_TELEMETRY_OTLP_ENDPOINT").ok(),
+                log_filter: std::env::var("TPP_TELEMETRY_LOG_FILTER").ok(),
+            },
+        };
+        config.validate()?;
+        Ok(config)
+    }
+
     /// Apply environment variable overrides
     /// Environment variables take precedence over config file values
     fn apply_env_overrides(&mut self) {
