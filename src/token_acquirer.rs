@@ -1,5 +1,6 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tracing::{error, info, warn};
 
 use crate::config::Credential;
@@ -18,15 +19,34 @@ struct LoginRequest {
 #[allow(dead_code)]
 struct LoginResponse {
     /// Session identifier
-    session: Option<String>,
+    session: Option<Value>,
     /// Authenticated username
     user: Option<String>,
-    /// "0" for success, "1" for failure
-    code: Option<String>,
+    /// 0 for success, 1 for failure (can be string or number)
+    code: Option<Value>,
     /// Error description (empty on success)
     message: Option<String>,
     /// Array containing the user token on success
     result: Option<Vec<String>>,
+}
+
+impl LoginResponse {
+    /// Check if login was successful (code == 0 or "0")
+    fn is_success(&self) -> bool {
+        match &self.code {
+            Some(Value::Number(n)) => n.as_i64() == Some(0),
+            Some(Value::String(s)) => s == "0",
+            _ => false,
+        }
+    }
+
+    /// Get code as string for error messages
+    fn code_str(&self) -> String {
+        match &self.code {
+            Some(v) => v.to_string(),
+            None => "unknown".to_string(),
+        }
+    }
 }
 
 /// Acquires tokens from DolphinDB by calling the login API
@@ -84,18 +104,18 @@ impl TokenAcquirer {
             ))
         })?;
 
-        // Check result code ("0" = success, "1" = failure in DolphinDB)
-        if let Some(code) = &login_response.code {
-            if code != "0" {
-                let msg = login_response
-                    .message
-                    .clone()
-                    .unwrap_or_else(|| "Unknown error".to_string());
-                return Err(TppError::TokenPool(format!(
-                    "Login failed for user '{}': {} (code: {})",
-                    credential.username, msg, code
-                )));
-            }
+        // Check result code (0 = success, 1 = failure in DolphinDB)
+        if !login_response.is_success() {
+            let msg = login_response
+                .message
+                .clone()
+                .unwrap_or_else(|| "Unknown error".to_string());
+            return Err(TppError::TokenPool(format!(
+                "Login failed for user '{}': {} (code: {})",
+                credential.username,
+                msg,
+                login_response.code_str()
+            )));
         }
 
         // Extract token from result array
